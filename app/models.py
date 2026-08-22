@@ -424,6 +424,17 @@ class ProductionProductUnit(Base):
     created_at: Mapped[str] = mapped_column(String(32), nullable=True)
 
 
+class ProductionReworkOrder(Base):
+    __tablename__ = "production_rework_orders"
+
+    rework_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    serial_number: Mapped[str] = mapped_column(String(64), index=True)
+    target_operation_sequence: Mapped[int] = mapped_column(Integer, nullable=True)
+    reason_code: Mapped[str] = mapped_column(String(64), nullable=True)
+    approved_by: Mapped[str] = mapped_column(String(32), nullable=True)
+    created_at: Mapped[str] = mapped_column(String(32))
+
+
 class QualityInspectionLot(Base):
     __tablename__ = "quality_inspection_lots"
 
