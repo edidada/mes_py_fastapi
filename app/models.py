@@ -535,15 +535,21 @@ class QualityQuarantineRecord(Base):
 
 
 class QualityCapa(Base):
-    __tablename__ = "quality_capas"
+    __tablename__ = "quality_capa_cases"
 
     capa_id: Mapped[str] = mapped_column(String(64), primary_key=True)
-    nonconformance_id: Mapped[str] = mapped_column(String(64), nullable=True)
-    title: Mapped[str] = mapped_column(String(256), nullable=True)
-    status: Mapped[str] = mapped_column(String(16), nullable=True)
+    plant_code: Mapped[str] = mapped_column(String(32), nullable=True)
+    nonconformance_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("quality_nonconformances.nonconformance_id"), nullable=False
+    )
     owner_id: Mapped[str] = mapped_column(String(32), nullable=True)
+    root_cause: Mapped[str] = mapped_column(String(1024), nullable=True)
+    corrective_action: Mapped[str] = mapped_column(String(1024), nullable=True)
+    status: Mapped[str] = mapped_column(String(16), nullable=True)
     due_at: Mapped[str] = mapped_column(String(32), nullable=True)
     created_at: Mapped[str] = mapped_column(String(32))
+    created_by: Mapped[str] = mapped_column(String(32), nullable=True)
+    closed_at: Mapped[str] = mapped_column(String(32), nullable=True)
 
 
 class QualitySpcMeasurement(Base):
