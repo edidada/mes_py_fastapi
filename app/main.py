@@ -18,7 +18,7 @@ from app.contract import ok
 from app.database import close_db_engine, init_db
 from app.errors import register_error_handlers
 from app.metrics import install_metrics
-from app.routers import plants_create, plants_list
+from app.routers import materials_create, plants_create, plants_list
 from app.services import DatabaseHealthService
 
 
@@ -68,6 +68,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(plants_create.router, prefix="/api/v1/master/plants")
     app.include_router(plants_list.router, prefix="/api/v1/master/plants")
+    app.include_router(materials_create.router, prefix="/api/v1/master/materials")
 
     # 路由注册完成后初始化 Wireup 集成
     wireup.integration.fastapi.setup(container, app)
