@@ -1,12 +1,12 @@
 """Wireup 管理的服务与资源工厂。"""
 
-from typing import Annotated
+from typing import Annotated, AsyncIterator
 
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncEngine
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from wireup import Inject, service
 
-from app.database import create_db_engine
+from app.database import create_db_engine, init_db
 
 # 注入名为 database_url 的容器配置参数
 DatabaseUrl = Annotated[str, Inject(param="database_url")]
@@ -16,6 +16,21 @@ DatabaseUrl = Annotated[str, Inject(param="database_url")]
 async def build_engine(database_url: DatabaseUrl) -> AsyncEngine:
     """创建数据库连接池（单例）。"""
     return await create_db_engine(database_url)
+
+
+@service
+async def build_session_factory(engine: AsyncEngine) -> async_sessionmaker[AsyncSession]:
+    """创建会话工厂（单例）。"""
+    return async_sessionmaker(engine, expire_on_commit=False)
+
+
+@service
+async def run_init_db(
+    engine: AsyncEngine,
+    reseed_on_start: Annotated[bool, Inject(param="reseed_on_start")],
+) -> None:
+    """启动阶段创建兼容表、视图与种子数据。"""
+    await init_db(engine, reseed_on_start=reseed_on_start)
 
 
 @service
