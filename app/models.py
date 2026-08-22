@@ -779,7 +779,9 @@ class MasterRecipe(Base):
     recipe_code: Mapped[str] = mapped_column(String(64), primary_key=True)
     version: Mapped[str] = mapped_column(String(16), primary_key=True)
     recipe_name: Mapped[str] = mapped_column(String(128), nullable=True)
-    product_material_code: Mapped[str] = mapped_column(String(64))
+    product_material_code: Mapped[str] = mapped_column(
+        String(64), ForeignKey("master_materials.material_code")
+    )
     target_batch_size: Mapped[float] = mapped_column(Float)
     unit_code: Mapped[str] = mapped_column(String(16))
     status: Mapped[str] = mapped_column(String(16), nullable=True)
