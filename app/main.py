@@ -8,8 +8,8 @@ from contextlib import asynccontextmanager
 from typing import Annotated, AsyncIterator
 
 import wireup.integration.fastapi
-from fastapi import Depends, FastAPI, Request
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
+from fastapi import FastAPI, Request
+from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 from wireup import Injected
 
 from app.config import Settings
@@ -18,18 +18,8 @@ from app.contract import ok
 from app.database import close_db_engine, init_db
 from app.errors import register_error_handlers
 from app.metrics import install_metrics
+from app.routers import plants_create
 from app.services import DatabaseHealthService
-
-
-async def get_session(request: Request) -> AsyncIterator[AsyncSession]:
-    """FastAPI 依赖：每次请求从容器解析会话工厂并创建一个会话。"""
-    container = request.app.state.container
-    factory: async_sessionmaker[AsyncSession] = await container.get(async_sessionmaker[AsyncSession])
-    async with factory() as session:
-        yield session
-
-
-DbSession = Annotated[AsyncSession, Depends(get_session)]
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -41,6 +31,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         # 启动阶段：连接池、建表、建视图、装种子；失败则服务不开始监听（fail-fast）
         engine = await container.get(AsyncEngine)
         await init_db(engine, reseed_on_start=settings.reseed_on_start)
+        app.state.session_factory = async_sessionmaker(engine, expire_on_commit=False)
         yield
         await close_db_engine(engine)
 
@@ -74,6 +65,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/ready")
     async def ready(db: Injected[DatabaseHealthService]) -> dict:
         return ok({"ready": await db.is_ready()}, "ready")
+
+    app.include_router(plants_create.router, prefix="/api/v1/master/plants")
 
     # 路由注册完成后初始化 Wireup 集成
     wireup.integration.fastapi.setup(container, app)
