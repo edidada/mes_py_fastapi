@@ -44,11 +44,12 @@ def test_health_ignores_query_and_body(tmp_path):
 
 
 def test_health_generated_at_is_recent(tmp_path):
-    """generatedAt 为当前 UTC 时间（精度到秒）。"""
+    """generatedAt 为当前 UTC 时间（精度到秒，允许整秒边界误差）。"""
     with _make_client(tmp_path) as client:
         resp = client.get("/health")
 
     assert resp.status_code == 200
     generated_at = resp.json()["meta"]["generatedAt"]
-    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    assert generated_at == now
+    now = datetime.now(timezone.utc)
+    generated = datetime.strptime(generated_at, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+    assert abs((now - generated).total_seconds()) <= 2

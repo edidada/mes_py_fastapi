@@ -507,6 +507,9 @@ class QualityNonconformance(Base):
     __tablename__ = "quality_nonconformances"
 
     nonconformance_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    source_inspection_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("quality_inspection_results.inspection_id"), nullable=True
+    )
     plant_code: Mapped[str] = mapped_column(String(32), nullable=True)
     serial_number: Mapped[str] = mapped_column(String(64), nullable=True)
     work_order_number: Mapped[str] = mapped_column(String(64), nullable=True)
@@ -516,6 +519,19 @@ class QualityNonconformance(Base):
     affected_qty: Mapped[int] = mapped_column(Integer, nullable=True)
     reported_by: Mapped[str] = mapped_column(String(32), nullable=True)
     reported_at: Mapped[str] = mapped_column(String(32))
+
+
+class QualityQuarantineRecord(Base):
+    __tablename__ = "quality_quarantine_records"
+
+    quarantine_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    nonconference_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("quality_nonconformances.nonconformance_id")
+    )
+    resource_type: Mapped[str] = mapped_column(String(32), nullable=True)
+    resource_code: Mapped[str] = mapped_column(String(64), nullable=True)
+    operator_id: Mapped[str] = mapped_column(String(32), nullable=True)
+    created_at: Mapped[str] = mapped_column(String(32))
 
 
 class QualityCapa(Base):
