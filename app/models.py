@@ -368,6 +368,7 @@ class QualityInspectionResult(Base):
     plan_code: Mapped[str] = mapped_column(String(64), nullable=True)
     operation_sequence: Mapped[int] = mapped_column(Integer, nullable=True)
     disposition: Mapped[str] = mapped_column(String(16), nullable=True)
+    defect_code: Mapped[str] = mapped_column(String(64), nullable=True)
     inspector_id: Mapped[str] = mapped_column(String(32), nullable=True)
     inspected_at: Mapped[str] = mapped_column(String(32))
     payload: Mapped[str] = mapped_column(Text, nullable=True)
