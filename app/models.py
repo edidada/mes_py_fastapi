@@ -644,7 +644,9 @@ class MaterialInventoryReservation(Base):
     reservation_id: Mapped[str] = mapped_column(String(64), primary_key=True)
     material_code: Mapped[str] = mapped_column(String(64))
     lot_number: Mapped[str] = mapped_column(String(64), nullable=True)
-    work_order_number: Mapped[str] = mapped_column(String(64), nullable=True)
+    work_order_number: Mapped[str] = mapped_column(
+        String(64), ForeignKey("production_work_orders.work_order_number"), nullable=False
+    )
     operation_sequence: Mapped[int] = mapped_column(Integer, nullable=True)
     quantity: Mapped[float] = mapped_column(Float, nullable=True)
     status: Mapped[str] = mapped_column(String(16), nullable=True)
