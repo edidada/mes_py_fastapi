@@ -124,6 +124,7 @@ class MasterWorkerQualification(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     worker_id: Mapped[str] = mapped_column(String(32), index=True)
     qualification: Mapped[str] = mapped_column(String(64), index=True)
+    granted_by: Mapped[str] = mapped_column(String(32), default="")
 
 
 class ProductionWorkOrder(Base):
