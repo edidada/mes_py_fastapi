@@ -218,17 +218,17 @@ class MasterStation(Base):
 
 
 class StationSession(Base):
-    __tablename__ = "station_sessions"
+    __tablename__ = "production_station_sessions"
 
     session_id: Mapped[str] = mapped_column(String(64), primary_key=True)
     station_code: Mapped[str] = mapped_column(
         String(64), ForeignKey("master_stations.station_code")
     )
-    work_order_number: Mapped[str] = mapped_column(String(64))
+    user_id: Mapped[str] = mapped_column(String(32))
     status: Mapped[str] = mapped_column(String(16), nullable=True)
-    operator_id: Mapped[str] = mapped_column(String(32), nullable=True)
+    shift_code: Mapped[str] = mapped_column(String(32), nullable=True)
     started_at: Mapped[str] = mapped_column(String(32))
-    ended_at: Mapped[str] = mapped_column(String(32), nullable=True)
+    logged_out_at: Mapped[str] = mapped_column(String(32), nullable=True)
 
 
 class ProductionOperationTask(Base):
