@@ -313,6 +313,37 @@ class ProductionExecutionEvent(Base):
     operator_id: Mapped[str] = mapped_column(String(32), nullable=True)
     event_type: Mapped[str] = mapped_column(String(16))
     occurred_at: Mapped[str] = mapped_column(String(32))
+    plant_code: Mapped[str] = mapped_column(String(32), nullable=True)
+    correlation_id: Mapped[str] = mapped_column(String(64), nullable=True)
+
+
+class ProductionLaborRecord(Base):
+    __tablename__ = "production_labor_records"
+
+    labor_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    serial_number: Mapped[str] = mapped_column(String(64), index=True)
+    work_order_number: Mapped[str] = mapped_column(String(64), nullable=True)
+    operation_sequence: Mapped[int] = mapped_column(Integer, nullable=True)
+    worker_id: Mapped[str] = mapped_column(String(32), nullable=True)
+    station_code: Mapped[str] = mapped_column(String(64), nullable=True)
+    start_at: Mapped[str] = mapped_column(String(32), nullable=True)
+    end_at: Mapped[str] = mapped_column(String(32), nullable=True)
+    status: Mapped[str] = mapped_column(String(16), nullable=True)
+
+
+class TraceEvent(Base):
+    __tablename__ = "trace_events"
+
+    event_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    event_type: Mapped[str] = mapped_column(String(32), index=True)
+    resource_type: Mapped[str] = mapped_column(String(64), nullable=True)
+    resource_code: Mapped[str] = mapped_column(String(64), nullable=True)
+    related_work_order_number: Mapped[str] = mapped_column(String(64), nullable=True)
+    related_serial_number: Mapped[str] = mapped_column(String(64), nullable=True)
+    message: Mapped[str] = mapped_column(String(256), nullable=True)
+    operator_id: Mapped[str] = mapped_column(String(32), nullable=True)
+    occurred_at: Mapped[str] = mapped_column(String(32), nullable=True)
+    correlation_id: Mapped[str] = mapped_column(String(64), nullable=True)
 
 
 class ProductionExecutionParameter(Base):
@@ -338,6 +369,7 @@ class ProductionProductUnit(Base):
     status: Mapped[str] = mapped_column(String(16), nullable=True)
     current_operation_sequence: Mapped[int] = mapped_column(Integer, nullable=True)
     current_station_code: Mapped[str] = mapped_column(String(64), nullable=True)
+    started_at: Mapped[str] = mapped_column(String(32), nullable=True)
     created_at: Mapped[str] = mapped_column(String(32), nullable=True)
 
 
