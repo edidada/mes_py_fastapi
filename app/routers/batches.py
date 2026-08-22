@@ -389,3 +389,126 @@ async def post_batch_charges(batch_id: str, request: Request, db: DbSession) -> 
 
     return ok({"batchNumber": batch_id, "chargesPosted": len(parsed)}, corr)
 
+
+@router.post("/batches/{batch_id}/parameters", status_code=200)
+async def post_batch_parameters(batch_id: str, request: Request, db: DbSession) -> dict:
+    corr = correlation_id(request.headers.get("X-Correlation-Id"))
+    require_role(request, {"MES_OPERATOR", "MES_SUPERVISOR", "MES_ADMIN"}, "MES_OPERATOR required")
+    idem_key = await require_idempotency_key(request)
+    cached = await find_idempotent(db, idem_key)
+    if cached is not None:
+        return ok({"batchNumber": cached["resource_code"], "cached": True}, corr)
+
+    body = await _parse_body(request)
+    parameters = body.get("parameters")
+    if not isinstance(parameters, list) or not parameters:
+        raise MESError(422, "VALIDATION_ERROR", "parameters required")
+
+    b = (
+        await db.execute(
+            text("SELECT recipe_code, recipe_version FROM production_batches WHERE batch_number = :bid"),
+            {"bid": batch_id},
+        )
+    ).first()
+    if b is None:
+        raise MESError(404, "NOT_FOUND", "batch not found")
+    recipe_code = b[0]
+    recipe_version = b[1]
+
+    parsed = []
+    for idx, p in enumerate(parameters):
+        if not isinstance(p, dict):
+            raise MESError(422, "VALIDATION_ERROR", f"parameter[{idx}] must be object")
+        seq = p.get("stepSequence")
+        seq = seq if isinstance(seq, int) and not isinstance(seq, bool) else int(seq) if str(seq).isdigit() else 0
+        param_code = p.get("parameterCode")
+        param_code = param_code if isinstance(param_code, str) else ""
+        value = p.get("value")
+        try:
+            value = float(value)
+        except (TypeError, ValueError):
+            raise MESError(422, "VALIDATION_ERROR", f"parameter[{idx}] value invalid") from None
+        unit_code = p.get("unitCode")
+        unit_code = unit_code if isinstance(unit_code, str) else None
+        if not param_code:
+            raise MESError(422, "VALIDATION_ERROR", f"parameter[{idx}] parameterCode required")
+
+        # 参数必须匹配主配方
+        m = (
+            await db.execute(
+                text(
+                    "SELECT lower_limit, upper_limit FROM master_recipe_parameters "
+                    "WHERE recipe_code = :rc AND version = :rv "
+                    "AND step_sequence = :seq AND parameter_code = :pc"
+                ),
+                {"rc": recipe_code, "rv": recipe_version, "seq": seq, "pc": param_code},
+            )
+        ).first()
+        if m is None:
+            raise MESError(409, "CONFLICT", f"parameter[{idx}] not in recipe")
+        lower, upper = m[0], m[1]
+        in_spec = 1
+        if lower is not None and value < lower:
+            in_spec = 0
+        if upper is not None and value > upper:
+            in_spec = 0
+        parsed.append((seq, param_code, value, unit_code, lower, upper, in_spec))
+
+    now = utc_now()
+    try:
+        for seq, param_code, value, unit_code, lower, upper, in_spec in parsed:
+            await db.execute(
+                text(
+                    "INSERT INTO production_batch_parameters "
+                    "(record_id, batch_number, step_sequence, parameter_code, value, "
+                    "lower_limit, upper_limit, unit_code, in_spec, recorded_by, recorded_at) "
+                    "VALUES (:id, :bid, :seq, :pc, :v, :lo, :up, :u, :spec, :by, :at)"
+                ),
+                {
+                    "id": gen_id("PRM"),
+                    "bid": batch_id,
+                    "seq": seq,
+                    "pc": param_code,
+                    "v": value,
+                    "lo": lower,
+                    "up": upper,
+                    "u": unit_code,
+                    "spec": in_spec,
+                    "by": get_actor(request),
+                    "at": now,
+                },
+            )
+        await write_audit(
+            db,
+            action="BATCH_PARAMETER",
+            resource_type="BATCH",
+            resource_id=batch_id,
+            before={},
+            after={"parameters": len(parsed)},
+            actor_id=get_actor(request),
+        )
+        await db.execute(
+            text(
+                "INSERT INTO integration_outbox_messages "
+                "(outbox_id, aggregate_type, aggregate_id, event_type, target_system, "
+                "status, payload, created_at) "
+                "VALUES (:id, 'BATCH', :aid, 'batch.parameters.recorded', 'LIMS', "
+                "'PENDING', :payload, :at)"
+            ),
+            {
+                "id": gen_id("OUT"),
+                "aid": batch_id,
+                "payload": json.dumps({"batchNumber": batch_id, "parameters": len(parsed)}, ensure_ascii=False),
+                "at": now,
+            },
+        )
+        await save_idempotent(db, idem_key, "200", batch_id, "parameters recorded")
+        await db.commit()
+    except MESError:
+        await db.rollback()
+        raise
+    except Exception:  # noqa: BLE001 - 与 C++ 一致忽略写失败
+        await db.rollback()
+
+    return ok({"batchNumber": batch_id, "parametersRecorded": len(parsed)}, corr)
+
