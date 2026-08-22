@@ -448,13 +448,39 @@ class ProductionScrapRecord(Base):
     created_at: Mapped[str] = mapped_column(String(32))
 
 
+class QualityInspectionPlan(Base):
+    __tablename__ = "quality_inspection_plans"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    material_code: Mapped[str] = mapped_column(String(64), index=True)
+    plan_code: Mapped[str] = mapped_column(String(64), nullable=True)
+    version: Mapped[str] = mapped_column(String(16), nullable=True)
+    inspection_type: Mapped[str] = mapped_column(String(16), nullable=True)
+    status: Mapped[str] = mapped_column(String(16), nullable=True)
+    effective_from: Mapped[str] = mapped_column(String(32), nullable=True)
+
+
+class QualitySamplingRule(Base):
+    __tablename__ = "quality_sampling_rules"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    plan_code: Mapped[str] = mapped_column(String(64), index=True)
+    version: Mapped[str] = mapped_column(String(16), nullable=True)
+    sample_size: Mapped[int] = mapped_column(Integer, nullable=True)
+
+
 class QualityInspectionLot(Base):
     __tablename__ = "quality_inspection_lots"
 
     lot_id: Mapped[str] = mapped_column(String(64), primary_key=True)
-    serial_number: Mapped[str] = mapped_column(String(64), nullable=True)
+    plant_code: Mapped[str] = mapped_column(String(32), nullable=True)
+    material_code: Mapped[str] = mapped_column(String(64), nullable=True)
     work_order_number: Mapped[str] = mapped_column(String(64), nullable=True)
+    serial_number: Mapped[str] = mapped_column(String(64), nullable=True)
+    inspection_type: Mapped[str] = mapped_column(String(16), nullable=True)
     plan_code: Mapped[str] = mapped_column(String(64), nullable=True)
+    plan_version: Mapped[str] = mapped_column(String(16), nullable=True)
+    sample_size: Mapped[int] = mapped_column(Integer, nullable=True)
     status: Mapped[str] = mapped_column(String(16), nullable=True)
     operator_id: Mapped[str] = mapped_column(String(32), nullable=True)
     created_at: Mapped[str] = mapped_column(String(32))
