@@ -61,6 +61,19 @@ _VIEWS: list[tuple[str, str]] = [
         """,
     ),
     (
+        "v_work_order_progress",
+        """
+        CREATE VIEW IF NOT EXISTS v_work_order_progress AS
+        SELECT w.work_order_number, w.plant_code, w.material_code, w.status, w.priority,
+               w.planned_quantity, w.completed_quantity, w.rejected_quantity,
+               (SELECT COUNT(*) FROM production_product_units u
+                 WHERE u.work_order_number = w.work_order_number
+                   AND u.status IN ('CREATED','IN_PROCESS','REWORK','HOLD','WAITING_INSPECTION'))
+                 AS wip_quantity
+        FROM production_work_orders w
+        """,
+    ),
+    (
         "v_batch_progress",
         """
         CREATE VIEW IF NOT EXISTS v_batch_progress AS
