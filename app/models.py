@@ -421,6 +421,7 @@ class ProductionProductUnit(Base):
     current_operation_sequence: Mapped[int] = mapped_column(Integer, nullable=True)
     current_station_code: Mapped[str] = mapped_column(String(64), nullable=True)
     started_at: Mapped[str] = mapped_column(String(32), nullable=True)
+    completed_at: Mapped[str] = mapped_column(String(32), nullable=True)
     created_at: Mapped[str] = mapped_column(String(32), nullable=True)
 
 
@@ -432,6 +433,18 @@ class ProductionReworkOrder(Base):
     target_operation_sequence: Mapped[int] = mapped_column(Integer, nullable=True)
     reason_code: Mapped[str] = mapped_column(String(64), nullable=True)
     approved_by: Mapped[str] = mapped_column(String(32), nullable=True)
+    created_at: Mapped[str] = mapped_column(String(32))
+
+
+class ProductionScrapRecord(Base):
+    __tablename__ = "production_scrap_records"
+
+    scrap_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    serial_number: Mapped[str] = mapped_column(String(64), index=True)
+    scrap_code: Mapped[str] = mapped_column(String(64), nullable=True)
+    disposition: Mapped[str] = mapped_column(String(16), nullable=True)
+    work_order_number: Mapped[str] = mapped_column(String(64), nullable=True)
+    operator_id: Mapped[str] = mapped_column(String(32), nullable=True)
     created_at: Mapped[str] = mapped_column(String(32))
 
 

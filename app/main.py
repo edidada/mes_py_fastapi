@@ -18,7 +18,7 @@ from app.contract import ok
 from app.database import close_db_engine, init_db
 from app.errors import register_error_handlers
 from app.metrics import install_metrics
-from app.routers import equipment_create, execution_context, executions_complete, executions_rework, executions_start, materials_create, plants_create, plants_list, production_plans_import, routings_create, stations_sessions, work_orders_create, work_orders_dispatch, work_orders_get, work_orders_list, work_orders_state, workers_create
+from app.routers import equipment_create, execution_context, executions_complete, executions_rework, executions_scrap, executions_start, materials_create, plants_create, plants_list, production_plans_import, routings_create, stations_sessions, work_orders_create, work_orders_dispatch, work_orders_get, work_orders_list, work_orders_state, workers_create
 from app.services import DatabaseHealthService
 
 
@@ -77,6 +77,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(executions_start.router, prefix="/api/v1/executions")
     app.include_router(executions_complete.router, prefix="/api/v1/executions")
     app.include_router(executions_rework.router, prefix="/api/v1/executions")
+    app.include_router(executions_scrap.router, prefix="/api/v1/executions")
     app.include_router(production_plans_import.router, prefix="/api/v1/production-plans")
     app.include_router(work_orders_create.router, prefix="/api/v1/work-orders")
     app.include_router(work_orders_dispatch.router, prefix="/api/v1/work-orders")
