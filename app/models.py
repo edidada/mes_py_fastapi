@@ -190,10 +190,44 @@ class ProductionWorkOrderOperation(Base):
     sequence: Mapped[int] = mapped_column(Integer, index=True)
     operation_code: Mapped[str] = mapped_column(String(64), nullable=True)
     work_center_code: Mapped[str] = mapped_column(String(64), nullable=True)
+    sop_id: Mapped[str] = mapped_column(String(64), nullable=True)
     quality_gate: Mapped[int] = mapped_column(Integer, nullable=True)
     allow_skip: Mapped[int] = mapped_column(Integer, nullable=True)
     standard_cycle_seconds: Mapped[int] = mapped_column(Integer, nullable=True)
     status: Mapped[str] = mapped_column(String(16), nullable=True)
+
+
+class MasterParameterSpecification(Base):
+    __tablename__ = "master_parameter_specifications"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    material_code: Mapped[str] = mapped_column(String(64), index=True)
+    operation_code: Mapped[str] = mapped_column(String(64), index=True)
+    code: Mapped[str] = mapped_column(String(64))
+    unit_code: Mapped[str] = mapped_column(String(16), nullable=True)
+    lower_limit: Mapped[float] = mapped_column(Float, nullable=True)
+    target_value: Mapped[float] = mapped_column(Float, nullable=True)
+    upper_limit: Mapped[float] = mapped_column(Float, nullable=True)
+    required: Mapped[int] = mapped_column(Integer, nullable=True)
+
+
+class MasterSopDocument(Base):
+    __tablename__ = "master_sop_documents"
+
+    sop_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    document_uri: Mapped[str] = mapped_column(String(256), nullable=True)
+    version: Mapped[str] = mapped_column(String(16), nullable=True)
+
+
+class MasterBomComponent(Base):
+    __tablename__ = "master_bom_components"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    bom_code: Mapped[str] = mapped_column(String(64), index=True)
+    version: Mapped[str] = mapped_column(String(16), index=True)
+    material_code: Mapped[str] = mapped_column(String(64))
+    quantity_per: Mapped[float] = mapped_column(Float, nullable=True)
+    unit_code: Mapped[str] = mapped_column(String(16), nullable=True)
 
 
 class ProductionWorkOrderLineage(Base):
@@ -300,7 +334,10 @@ class ProductionProductUnit(Base):
 
     serial_number: Mapped[str] = mapped_column(String(64), primary_key=True)
     work_order_number: Mapped[str] = mapped_column(String(64), nullable=True)
+    material_code: Mapped[str] = mapped_column(String(64), nullable=True)
     status: Mapped[str] = mapped_column(String(16), nullable=True)
+    current_operation_sequence: Mapped[int] = mapped_column(Integer, nullable=True)
+    current_station_code: Mapped[str] = mapped_column(String(64), nullable=True)
     created_at: Mapped[str] = mapped_column(String(32), nullable=True)
 
 
