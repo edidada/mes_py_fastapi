@@ -11,6 +11,8 @@
 
 ## `GET /health`
 
+> 实现状态：✅ 已实现（Python 服务 `app/main.py` + `app/services.py`），契约测试见 `tests/test_health.py`。
+
 ### 功能
 
 报告 HTTP 服务状态、数据库连接状态和兼容接口版本。对应 C++ 实现为 `backend/src/server/HttpServer.cpp` 中注册的 `/health` 路由。
@@ -58,7 +60,7 @@ HTTP 状态码固定为 `200 OK`。
 
 ### 数据库访问
 
-该 URL 不执行 SQL。`summer-sqlx` 的 `SqlxPlugin` 在应用启动阶段按 `config/app.toml` 创建 SQLite 连接池并注入处理器；处理器读取连接池的 `is_closed()` 状态，映射为 `OK` 或 `DOWN`。若初始数据库连接无法建立，Summer 应用构建失败，HTTP 服务不会开始监听，这与 C++ 服务启动时数据库打开失败即退出一致。
+该 URL 不执行 SQL。应用在 FastAPI lifespan 启动阶段按项目配置（`pyproject.toml`）通过 SQLAlchemy 异步引擎 + `aiosqlite` 创建 SQLite 连接池，并作为 FastAPI 依赖注入处理器；处理器检查连接池的健康状态（SQLAlchemy `engine` 连接检查），映射为 `OK` 或 `DOWN`。若初始数据库连接无法建立，应用启动失败，HTTP 服务不会开始监听，这与 C++ 服务启动时数据库打开失败即退出一致。
 
 ### 错误响应
 
@@ -109,7 +111,7 @@ HTTP 状态码固定为 `200 OK`。
 
 ### 数据库访问
 
-该 URL 不执行 SQL。处理器读取由 `summer-sqlx` 注入的连接池 `is_closed()` 状态并取反，得到布尔型 `ready`。如果应用启动时无法创建数据库连接池，服务不会开始监听。
+该 URL 不执行 SQL。处理器读取由 FastAPI 依赖注入的 SQLAlchemy 连接池健康状态并取反，得到布尔型 `ready`。如果应用启动时无法创建数据库连接池，服务不会开始监听。
 
 ### 错误响应
 
@@ -226,7 +228,7 @@ FROM master_plants
 ORDER BY plant_code;
 ```
 
-使用 `summer-sqlx` 注入的连接池，不开启显式事务。数据库由 `MesDatabasePlugin` 在 Web 服务监听前创建兼容表；默认 `reseed_on_start=true`，当前会装入与 C++ 种子一致的 `PLANT-A`。
+使用 FastAPI 依赖注入的 SQLAlchemy 连接池，不开启显式事务。数据库由 `init_db()` 在 Web 服务监听前创建兼容表；默认 `reseed_on_start=true`（项目配置项），当前会装入与 C++ 种子一致的 `PLANT-A`。
 
 ## `POST /api/v1/master/materials`
 

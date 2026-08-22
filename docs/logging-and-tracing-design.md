@@ -1,7 +1,7 @@
 # MES 日志系统与 Trace 追踪体系设计
 
 > 语言无关（Language-agnostic）的设计文档。
-> 不绑定任何具体语言/框架实现，但会说明如何与本项目已有的 `summer` 日志插件（`tracing`）和 `summer-opentelemetry` 插件衔接。
+> 不绑定任何具体语言/框架实现，但会说明如何与本项目 Python（Poetry + FastAPI）技术栈衔接：`logging`/`structlog` 日志与 `opentelemetry-python` 追踪 SDK。
 > 适用场景：MES 制造执行系统（HTTP API），单实例起步、未来向多实例/多服务演进。
 
 ---
@@ -42,8 +42,8 @@ MES 系统一旦出问题（工单丢失、重复创建、数据库锁、接口�
 |---|---|---|
 | 关联 ID | HTTP 层已有 `x-correlation-id`，缺失时自动生成 `corr-xxxxxxxxxxxxxxxx`，响应 `meta.correlationId` 返回 | 仅覆盖 HTTP 请求，未贯通到 DB span、日志字段、外部调用 |
 | 幂等键 | 已有 `x-idempotency-key` + `idempotency_keys` 表 | 幂等判定事件未打日志 |
-| 日志插件 | `summer` 内置 LogPlugin：JSON/compact/pretty、文件滚动落盘（daily、非阻塞）、级别过滤、ErrorLayer 错误栈回溯 | 尚未启用文件落盘；日志未统一携带 trace/span 上下文；无集中式采集 |
-| 追踪插件 | `summer-opentelemetry`：W3C trace-context 默认传播，可选 jaeger/zipkin，`[opentelemetry] enable=false` 默认关闭 | 未启用；未定义业务 span 与属性 |
+| 日志插件 | Python `logging` + `structlog`：JSON/console 格式、文件滚动落盘（daily、非阻塞）、级别过滤、堆栈回溯 | 尚未启用文件落盘；日志未统一携带 trace/span 上下文；无集中式采集 |
+| 追踪插件 | `opentelemetry-python`：W3C trace-context 默认传播，可选 jaeger/zipkin exporter，默认关闭 | 未启用；未定义业务 span 与属性 |
 | 缓存/Redis | 尚未加入请求路径（`DEVELOPMENT_PROGRESS.txt` 明确待办） | 需在基础设施层记录连接、命中/未命中、TTL、失效、降级事件 |
 
 ### 1.3 设计边界
@@ -68,7 +68,7 @@ MES 系统一旦出问题（工单丢失、重复创建、数据库锁、接口�
 
 - **结构化优先**：一切日志输出为 JSON 键值对，禁止自由文本拼接（异常堆栈除外，作为字段值）。
 - **约定大于配置**：字段名、级别、span 命名有全局字典，全团队统一。
-- **语义与实现解耦**：本设计定义的字段/事件是**契约**；具体实现（tracing / log4j / slog）只是载体。
+- **语义与实现解耦**：本设计定义的字段/事件是**契约**；具体实现（Python `logging` / `structlog` / log4j）只是载体。
 - **上下文自动传播**：Trace ID、Correlation ID 由基础设施自动注入日志和 span，业务代码不感知。
 - **红线不可妥协**：脱敏规则由基础设施强制，业务代码无法绕过（见第 12 章）。
 
@@ -147,7 +147,7 @@ MES 系统一旦出问题（工单丢失、重复创建、数据库锁、接口�
 
 | 协议 | 选用 | 理由 |
 |---|---|---|
-| **W3C Trace-Context**（`traceparent`/`tracestate`） | ✅ 默认 | 行业标准、云厂商通用、`summer-opentelemetry` 默认支持 |
+| **W3C Trace-Context**（`traceparent`/`tracestate`） | ✅ 默认 | 行业标准、云厂商通用、`opentelemetry-python` 默认支持 |
 | B3（Zipkin） | 兼容 | 遗留系统网关对接时启用 zipkin feature |
 | Jaeger 格式 | 兼容 | 对接老 Jaeger 客户端时启用 |
 | W3C Baggage（`baggage`） | 可选 | 跨服务携带业务上下文（如 tenant），**严禁放敏感数据** |
@@ -160,7 +160,7 @@ MES 系统一旦出问题（工单丢失、重复创建、数据库锁、接口�
    ▼
   ┌─────────────┐  透传 traceparent   ┌──────────────┐  透传  ┌──────────────┐
   │ 网关 / LB    │ ──────────────────► │ MES API 服务 │ ─────► │ 业务服务/外部│
-  │ (入口, 可选) │                     │ (summer)     │        │ (DB/Redis)  │
+  │ (入口, 可选) │                     │ (FastAPI)    │        │ (DB/Redis)  │
   └─────────────┘                     └──────────────┘        └──────────────┘
 ```
 
@@ -277,11 +277,11 @@ MES 系统一旦出问题（工单丢失、重复创建、数据库锁、接口�
 
 | 阶段 | 存储 | 保留 | 说明 |
 |---|---|---|---|
-| 起步 | 本地文件滚动（`summer` LogPlugin：daily + max_log_files） | 本地 7~30 天 | 低成本，先跑起来 |
+| 起步 | 本地文件滚动（Python `logging`：daily + max_log_files） | 本地 7~30 天 | 低成本，先跑起来 |
 | 演进 | 集中式（Loki / Elasticsearch） | 30 天热 + 180 天冷 | 检索、看板、告警 |
 | 审计需求强 | 审计日志独立索引/桶 | ≥ 1 年 | 合规要求另定 |
 
-**文件滚动策略**（对齐现有 LogPlugin 能力）：
+**文件滚动策略**（对齐现有日志配置能力）：
 - 轮转：`daily`（生产），文件名带日期；
 - 保留：`max_log_files = 90`；
 - 写入：`non_blocking = true`（异步写，避免阻塞请求路径）；
@@ -361,7 +361,7 @@ Span 上记录**带时间戳的关键事件**，比属性更细粒度：
 
 | 后端 | 适用 | 备注 |
 |---|---|---|
-| **Jaeger** | 首选（单机可用） | 与 `summer-opentelemetry` jaeger feature 配套；UI 成熟 |
+| **Jaeger** | 首选（单机可用） | 与 `opentelemetry-python` jaeger exporter 配套；UI 成熟 |
 | **Tempo (Grafana)** | 与 Grafana 大盘一体化 | 与 Loki 日志、Prometheus 指标统一入口 |
 | Zipkin | 兼容 | 不建议新选 |
 
@@ -392,7 +392,7 @@ Span 上记录**带时间戳的关键事件**，比属性更细粒度：
 │   │── 外部调用 ─► Ext Span（透传 traceparent）                             │
 │   │── 定时任务 ─► JOB Span                                               │
 │                                                                           │
-│  Logging SDK (tracing) ──► 结构化 JSON 日志 ──► 本地滚动文件                │
+│  Logging SDK (logging/structlog) ──► 结构化 JSON 日志 ──► 本地滚动文件      │
 │                                                                           │
 │  Tracing SDK (otel) ──► OTLP ──► OTel Collector                          │
 └──────────────────────────────────────────────────────────────────────────┘
@@ -411,7 +411,7 @@ Span 上记录**带时间戳的关键事件**，比属性更细粒度：
 
 | 层 | 职责 | 要点 |
 |---|---|---|
-| **应用内 SDK** | 日志格式化、span 创建、传播、注入 | `summer` LogPlugin + `summer-opentelemetry`，按配置启用 |
+| **应用内 SDK** | 日志格式化、span 创建、传播、注入 | Python `logging`/`structlog` + `opentelemetry-python`，按配置启用 |
 | **OTel Collector** | 接收 OTLP、批处理、采样、脱敏、转发 | 单实例可先内存直出，规模上来再独立部署 |
 | **Trace 后端** | 存储与查询 trace | Jaeger 单机可 docker 起 |
 | **日志管道** | 采集（Promtail/Filebeat）→ 存储 → 检索 | 从本地文件读，不改应用 |
@@ -420,24 +420,19 @@ Span 上记录**带时间戳的关键事件**，比属性更细粒度：
 ### 8.3 与现有配置衔接（参考）
 
 ```toml
+# pyproject.toml（Poetry）：自定义命名空间 [tool.mes.*]
 # 日志：启用文件落盘 + JSON
-[logger]
-level = "info"
-format = "json"
-time_style = "utc"
-with_fields = ["thread_id", "file", "line_number"]
-
-[logger.file]
-enable = true
-non_blocking = true
-format = "json"
-rotation = "daily"
-dir = "./logs"
-filename_prefix = "mes"
+[tool.mes.logging]
+level = "INFO"
+format = "json"            # 或 "console"
+file_dir = "./logs"
+file_prefix = "mes"
+rotation = "daily"         # 文件名带日期
 max_log_files = 90
+non_blocking = true        # 异步写，避免阻塞请求路径
 
-# 追踪：启用 OpenTelemetry，W3C 传播 + Jaeger 后端
-[opentelemetry]
+# 追踪：启用 OpenTelemetry（opentelemetry-python），W3C 传播 + Jaeger 后端
+[tool.mes.tracing]
 enable = true
 # 其余走 OTEL 环境变量：OTEL_EXPORTER_OTLP_ENDPOINT、OTEL_TRACES_SAMPLER 等
 ```
@@ -491,7 +486,7 @@ enable = true
 按阶段落地，每阶段独立可交付、可回滚、不改变接口语义。
 
 ### Phase 1：结构化日志 + 关联 ID 贯通（本周级）
-- [ ] 启用 LogPlugin 文件落盘 + JSON 格式（生产配置）；
+- [ ] 启用 Python 日志文件落盘 + JSON 格式（生产配置）；
 - [ ] 统一 `level/logger/category` 字典，清理非结构化日志；
 - [ ] 中间件统一注入 `correlation_id` 到日志字段；
 - [ ] 幂等键 / 审计事件补日志（含 `idempotency_key`、`actor_id`、结果）；
@@ -499,7 +494,7 @@ enable = true
 - [ ] 验收：任意请求可在日志中通过 correlation_id 收敛。
 
 ### Phase 2：Trace 打通（月级）
-- [ ] 启用 `summer-opentelemetry`，W3C 传播，HTTP 入口根 span；
+- [ ] 启用 `opentelemetry-python`，W3C 传播，HTTP 入口根 span；
 - [ ] DB / 缓存 / 外部调用子 span + 7.2 强制属性；
 - [ ] 错误分支 `span.status = ERROR` + 日志携带 `trace_id/span_id`；
 - [ ] 部署 OTel Collector + Jaeger；

@@ -1,0 +1,34 @@
+[tool.poetry]
+name = "mes-py-fastapi"
+version = "0.1.0"
+description = "MES 制造执行系统 HTTP API —— Python 实现（Poetry + FastAPI + Wireup），与 C++ 接口逐条兼容"
+authors = ["mes-team"]
+readme = "README.md"
+packages = [{ include = "app" }]
+
+[tool.poetry.dependencies]
+python = "^3.12"
+fastapi = "^0.115.0"
+uvicorn = { version = "^0.34.0", extras = ["standard"] }
+wireup = "^1.0.0"
+sqlalchemy = "^2.0.0"
+aiosqlite = "^0.20.0"
+pydantic-settings = "^2.7.0"
+
+[[tool.poetry.source]]
+name = "aliyun"
+url = "https://mirrors.aliyun.com/pypi/simple/"
+priority = "primary"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.3.0"
+pytest-asyncio = "^0.24.0"
+httpx = "^0.27.0"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
