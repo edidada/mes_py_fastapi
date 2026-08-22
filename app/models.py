@@ -5,6 +5,7 @@
 """
 
 from sqlalchemy import (
+    CheckConstraint,
     Float,
     ForeignKey,
     Integer,
@@ -340,11 +341,15 @@ class ProductionMaterialConsumption(Base):
 
     consumption_id: Mapped[str] = mapped_column(String(64), primary_key=True)
     serial_number: Mapped[str] = mapped_column(String(64), index=True)
-    work_order_number: Mapped[str] = mapped_column(String(64), nullable=True)
+    work_order_number: Mapped[str] = mapped_column(
+        String(64), ForeignKey("production_work_orders.work_order_number"), nullable=False
+    )
     operation_sequence: Mapped[int] = mapped_column(Integer, nullable=True)
     material_code: Mapped[str] = mapped_column(String(64), index=True)
     lot_number: Mapped[str] = mapped_column(String(64), nullable=True)
-    quantity: Mapped[float] = mapped_column(Float, nullable=True)
+    quantity: Mapped[float] = mapped_column(
+        Float, CheckConstraint("quantity > 0"), nullable=True
+    )
     unit_code: Mapped[str] = mapped_column(String(16), nullable=True)
     consumed_by: Mapped[str] = mapped_column(String(32), nullable=True)
     consumed_at: Mapped[str] = mapped_column(String(32))
