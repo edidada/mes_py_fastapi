@@ -6,6 +6,7 @@
 
 from sqlalchemy import (
     Float,
+    ForeignKey,
     Integer,
     String,
     Text,
@@ -206,16 +207,63 @@ class ProductionWorkOrderLineage(Base):
     occurred_at: Mapped[str] = mapped_column(String(32))
 
 
+class MasterStation(Base):
+    __tablename__ = "master_stations"
+
+    station_code: Mapped[str] = mapped_column(String(64), primary_key=True)
+    station_name: Mapped[str] = mapped_column(String(128), nullable=True)
+    plant_code: Mapped[str] = mapped_column(String(32), nullable=True)
+    work_center_code: Mapped[str] = mapped_column(String(64), nullable=True)
+    active: Mapped[int] = mapped_column(Integer, nullable=True)
+
+
 class StationSession(Base):
     __tablename__ = "station_sessions"
 
     session_id: Mapped[str] = mapped_column(String(64), primary_key=True)
-    station_code: Mapped[str] = mapped_column(String(64))
+    station_code: Mapped[str] = mapped_column(
+        String(64), ForeignKey("master_stations.station_code")
+    )
     work_order_number: Mapped[str] = mapped_column(String(64))
     status: Mapped[str] = mapped_column(String(16), nullable=True)
     operator_id: Mapped[str] = mapped_column(String(32), nullable=True)
     started_at: Mapped[str] = mapped_column(String(32))
     ended_at: Mapped[str] = mapped_column(String(32), nullable=True)
+
+
+class ProductionOperationTask(Base):
+    __tablename__ = "production_operation_tasks"
+
+    task_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    work_order_number: Mapped[str] = mapped_column(
+        String(64), ForeignKey("production_work_orders.work_order_number"), index=True
+    )
+    operation_sequence: Mapped[int] = mapped_column(Integer, index=True)
+    station_code: Mapped[str] = mapped_column(String(64), nullable=True)
+    worker_id: Mapped[str] = mapped_column(String(32), nullable=True)
+    status: Mapped[str] = mapped_column(String(16), nullable=True)
+    created_at: Mapped[str] = mapped_column(String(32), nullable=True)
+
+
+class ProductionDispatchAssignment(Base):
+    __tablename__ = "production_dispatch_assignments"
+
+    assignment_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    work_order_number: Mapped[str] = mapped_column(
+        String(64), ForeignKey("production_work_orders.work_order_number")
+    )
+    operation_sequence: Mapped[int] = mapped_column(Integer, nullable=True)
+    station_code: Mapped[str] = mapped_column(
+        String(64), ForeignKey("master_stations.station_code")
+    )
+    worker_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("master_workers.worker_id")
+    )
+    shift_code: Mapped[str] = mapped_column(String(32), nullable=True)
+    status: Mapped[str] = mapped_column(String(16), nullable=True)
+    priority: Mapped[int] = mapped_column(Integer, nullable=True)
+    scheduled_start_at: Mapped[str] = mapped_column(String(32), nullable=True)
+    created_at: Mapped[str] = mapped_column(String(32), nullable=True)
 
 
 class ProductionExecutionEvent(Base):

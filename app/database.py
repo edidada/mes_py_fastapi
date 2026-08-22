@@ -1,6 +1,6 @@
 """SQLAlchemy 异步引擎、连接池管理与数据库初始化。"""
 
-from sqlalchemy import text
+from sqlalchemy import event, text
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
 from app.models import Base
@@ -99,6 +99,14 @@ async def create_db_engine(database_url: str) -> AsyncEngine:
     与 C++ 服务启动时数据库打开失败即退出的行为一致。
     """
     engine = create_async_engine(database_url)
+
+    @event.listens_for(engine.sync_engine, "connect")
+    def _enable_foreign_keys(dbapi_connection, connection_record):  # noqa: ARG001
+        # 与 C++ 权威实现一致，SQLite 连接开启外键约束
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
+
     async with engine.connect() as conn:
         await conn.execute(text("SELECT 1"))
     return engine
