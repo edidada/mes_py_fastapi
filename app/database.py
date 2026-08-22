@@ -103,6 +103,34 @@ _VIEWS: list[tuple[str, str]] = [
         GROUP BY plant_code
         """,
     ),
+    (
+        "v_batch_recipe_compliance",
+        """
+        CREATE VIEW IF NOT EXISTS v_batch_recipe_compliance AS
+        SELECT b.batch_number,
+               CASE
+                   WHEN EXISTS (
+                       SELECT 1
+                       FROM production_batch_parameters p
+                       JOIN production_batches bb
+                         ON bb.batch_number = p.batch_number
+                       LEFT JOIN master_recipe_parameters m
+                         ON m.recipe_code = bb.recipe_code
+                        AND m.version = bb.recipe_version
+                        AND m.step_sequence = p.step_sequence
+                        AND m.parameter_code = p.parameter_code
+                       WHERE p.batch_number = b.batch_number
+                         AND m.parameter_code IS NOT NULL
+                         AND (
+                             (m.lower_limit IS NOT NULL AND p.value < m.lower_limit)
+                             OR (m.upper_limit IS NOT NULL AND p.value > m.upper_limit)
+                         )
+                   ) THEN 0
+                   ELSE 1
+               END AS recipe_compliant
+        FROM production_batches b
+        """,
+    ),
 ]
 
 
