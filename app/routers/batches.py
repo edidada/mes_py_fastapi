@@ -1,11 +1,14 @@
-"""批次查询与状态、投料、参数、处置、EBR 端点。
+"""批次查询、状态、投料、参数、处置、EBR 端点。
 
 实现文档中的：
 - ``GET /api/v1/batches`` 批次列表（2535）
 - ``GET /api/v1/batches/{id}`` 批次详情（2545）
 - ``POST /api/v1/batches/{id}/state`` 批次状态迁移（2551）
+- ``POST /api/v1/batches/{id}/charges`` 投料记录（2592）
+- ``POST /api/v1/batches/{id}/parameters`` 参数录入（2622）
+- ``POST /api/v1/batches/{id}/quality-disposition`` 质量处置（2643）
+- ``GET /api/v1/batches/{id}/ebr`` 电子批记录（2670）
 
-列表支持可选 ``status`` 过滤；详情返回 ``production_batches`` 整行，
 字段名映射遵循文档契约（``currentQty`` → ``actual_quantity``，
 ``targetQty`` → ``planned_quantity``，``qaStatus`` → ``quality_disposition``，
 ``materialCode`` → ``product_material_code``，``uom`` → ``unit_code``）。
@@ -607,4 +610,137 @@ async def post_batch_disposition(batch_id: str, request: Request, db: DbSession)
         await db.rollback()
 
     return ok({"batchNumber": batch_id, "decision": decision}, corr)
+
+
+@router.get("/batches/{batch_id}/ebr", status_code=200)
+async def get_batch_ebr(batch_id: str, request: Request, db: DbSession) -> dict:
+    corr = correlation_id(request.headers.get("X-Correlation-Id"))
+
+    row = (
+        await db.execute(
+            text(
+                "SELECT plant_code, product_material_code, status, quality_disposition, "
+                "recipe_code, recipe_version, equipment_code, planned_quantity, "
+                "actual_quantity, unit_code, started_at, completed_at, created_at, updated_at "
+                "FROM production_batches WHERE batch_number = :bid"
+            ),
+            {"bid": batch_id},
+        )
+    ).first()
+    if row is None:
+        raise MESError(404, "NOT_FOUND", "batch not found")
+
+    charges = (
+        await db.execute(
+            text(
+                "SELECT component_sequence, material_code, lot_number, quantity, unit_code, "
+                "charged_by, charged_at FROM production_batch_charges WHERE batch_number = :bid"
+            ),
+            {"bid": batch_id},
+        )
+    ).fetchall()
+    parameters = (
+        await db.execute(
+            text(
+                "SELECT step_sequence, parameter_code, value, lower_limit, upper_limit, "
+                "unit_code, in_spec, recorded_by, recorded_at "
+                "FROM production_batch_parameters WHERE batch_number = :bid"
+            ),
+            {"bid": batch_id},
+        )
+    ).fetchall()
+    dispositions = (
+        await db.execute(
+            text(
+                "SELECT decision, disposition_code, inspector, inspected_at, notes, status "
+                "FROM production_batch_dispositions WHERE batch_number = :bid ORDER BY inspected_at"
+            ),
+            {"bid": batch_id},
+        )
+    ).fetchall()
+
+    # 调用质量服务 enrich（v_quality_ebr）注入质量结论
+    quality = (
+        await db.execute(
+            text("SELECT decision, disposition_status, batch_status FROM v_quality_ebr WHERE batch_number = :bid"),
+            {"bid": batch_id},
+        )
+    ).first()
+
+    ebr = {
+        "batchNumber": batch_id,
+        "plantCode": row[0],
+        "materialCode": row[1],
+        "status": _cap_status(row[2]),
+        "qaStatus": row[3],
+        "recipeCode": row[4],
+        "recipeVersion": row[5],
+        "equipmentCode": row[6],
+        "plannedQuantity": row[7],
+        "actualQuantity": row[8],
+        "unitCode": row[9],
+        "startedAt": row[10],
+        "completedAt": row[11],
+        "createdAt": row[12],
+        "updatedAt": row[13],
+        "charges": [
+            {
+                "componentSequence": c[0],
+                "materialCode": c[1],
+                "lotNumber": c[2],
+                "quantity": c[3],
+                "unitCode": c[4],
+                "chargedBy": c[5],
+                "chargedAt": c[6],
+            }
+            for c in charges
+        ],
+        "parameters": [
+            {
+                "stepSequence": p[0],
+                "parameterCode": p[1],
+                "value": p[2],
+                "lowerLimit": p[3],
+                "upperLimit": p[4],
+                "unitCode": p[5],
+                "inSpec": p[6],
+                "recordedBy": p[7],
+                "recordedAt": p[8],
+            }
+            for p in parameters
+        ],
+        "dispositions": [
+            {
+                "decision": d[0],
+                "dispositionCode": d[1],
+                "inspector": d[2],
+                "inspectedAt": d[3],
+                "notes": d[4],
+                "status": d[5],
+            }
+            for d in dispositions
+        ],
+        "executionEvents": [],
+        "qualityConclusion": (
+            {"decision": quality[0], "dispositionStatus": quality[1], "batchStatus": quality[2]}
+            if quality else None
+        ),
+    }
+
+    # 写 EBR 查看审计（返回值忽略，与 C++ 一致）
+    try:
+        await write_audit(
+            db,
+            action="EBR_VIEW",
+            resource_type="BATCH",
+            resource_id=batch_id,
+            before={},
+            after={},
+            actor_id=get_actor(request),
+        )
+        await db.commit()
+    except Exception:  # noqa: BLE001
+        await db.rollback()
+
+    return ok(ebr, corr)
 

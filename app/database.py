@@ -131,6 +131,20 @@ _VIEWS: list[tuple[str, str]] = [
         FROM production_batches b
         """,
     ),
+    (
+        "v_quality_ebr",
+        """
+        CREATE VIEW IF NOT EXISTS v_quality_ebr AS
+        SELECT b.batch_number,
+               (SELECT d.decision
+                  FROM production_batch_dispositions d
+                 WHERE d.batch_number = b.batch_number
+                 ORDER BY d.inspected_at DESC LIMIT 1) AS decision,
+               b.quality_disposition AS disposition_status,
+               b.status AS batch_status
+        FROM production_batches b
+        """,
+    ),
 ]
 
 
