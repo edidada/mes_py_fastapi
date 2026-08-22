@@ -512,3 +512,99 @@ async def post_batch_parameters(batch_id: str, request: Request, db: DbSession) 
 
     return ok({"batchNumber": batch_id, "parametersRecorded": len(parsed)}, corr)
 
+
+@router.post("/batches/{batch_id}/quality-disposition", status_code=200)
+async def post_batch_disposition(batch_id: str, request: Request, db: DbSession) -> dict:
+    corr = correlation_id(request.headers.get("X-Correlation-Id"))
+    require_role(request, {"QA_INSPECTOR", "MES_ADMIN"}, "QA_INSPECTOR required")
+    idem_key = await require_idempotency_key(request)
+    cached = await find_idempotent(db, idem_key)
+    if cached is not None:
+        return ok({"batchNumber": cached["resource_code"], "cached": True}, corr)
+
+    body = await _parse_body(request)
+    decision = body.get("decision")
+    decision = decision if isinstance(decision, str) else ""
+    disposition_code = body.get("dispositionCode")
+    disposition_code = disposition_code if isinstance(disposition_code, str) else None
+    inspector = body.get("inspector")
+    inspector = inspector if isinstance(inspector, str) else ""
+    notes = body.get("notes")
+    notes = notes if isinstance(notes, str) else None
+
+    if decision not in ("ACCEPT", "REJECT", "REWORK", "SCRAP", "USE_AS_IS"):
+        raise MESError(422, "VALIDATION_ERROR", "decision invalid")
+    if not inspector:
+        raise MESError(422, "VALIDATION_ERROR", "inspector required")
+
+    row = (
+        await db.execute(
+            text("SELECT status FROM production_batches WHERE batch_number = :bid"),
+            {"bid": batch_id},
+        )
+    ).first()
+    if row is None:
+        raise MESError(404, "NOT_FOUND", "batch not found")
+    # 质量判定仅允许在待判定/已判定质量相关状态进行
+    if row[0] not in ("WAITING_QA", "QA_PASSED", "QA_FAILED"):
+        raise MESError(409, "CONFLICT", "batch not in quality decision state")
+
+    now = utc_now()
+    try:
+        await db.execute(
+            text(
+                "INSERT INTO production_batch_dispositions "
+                "(id, batch_number, decision, disposition_code, inspector, inspected_at, notes, status) "
+                "VALUES (:id, :bid, :dec, :dc, :ins, :at, :notes, 'RECORDED')"
+            ),
+            {
+                "id": gen_id("DSP"),
+                "bid": batch_id,
+                "dec": decision,
+                "dc": disposition_code,
+                "ins": inspector,
+                "at": now,
+                "notes": notes,
+            },
+        )
+        await db.execute(
+            text(
+                "UPDATE production_batches SET quality_disposition = :q, updated_at = :at "
+                "WHERE batch_number = :bid"
+            ),
+            {"q": decision, "at": now, "bid": batch_id},
+        )
+        await write_audit(
+            db,
+            action="BATCH_DISPOSITION",
+            resource_type="BATCH",
+            resource_id=batch_id,
+            before={},
+            after={"decision": decision},
+            actor_id=get_actor(request),
+        )
+        await db.execute(
+            text(
+                "INSERT INTO integration_outbox_messages "
+                "(outbox_id, aggregate_type, aggregate_id, event_type, target_system, "
+                "status, payload, created_at) "
+                "VALUES (:id, 'BATCH', :aid, 'batch.quality.disposition', 'QMS', "
+                "'PENDING', :payload, :at)"
+            ),
+            {
+                "id": gen_id("OUT"),
+                "aid": batch_id,
+                "payload": json.dumps({"batchNumber": batch_id, "decision": decision}, ensure_ascii=False),
+                "at": now,
+            },
+        )
+        await save_idempotent(db, idem_key, "200", batch_id, "disposition recorded")
+        await db.commit()
+    except MESError:
+        await db.rollback()
+        raise
+    except Exception:  # noqa: BLE001 - 与 C++ 一致忽略写失败
+        await db.rollback()
+
+    return ok({"batchNumber": batch_id, "decision": decision}, corr)
+
