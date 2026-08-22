@@ -177,6 +177,8 @@ class ProductionWorkOrder(Base):
     actual_end_at: Mapped[str] = mapped_column(String(32), nullable=True)
     cancelled_at: Mapped[str] = mapped_column(String(32), nullable=True)
     cancelled_by: Mapped[str] = mapped_column(String(64), nullable=True)
+    created_at: Mapped[str] = mapped_column(String(32), nullable=True)
+    updated_at: Mapped[str] = mapped_column(String(32), nullable=True)
 
 
 class ProductionWorkOrderOperation(Base):

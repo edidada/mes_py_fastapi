@@ -18,7 +18,7 @@ from app.contract import ok
 from app.database import close_db_engine, init_db
 from app.errors import register_error_handlers
 from app.metrics import install_metrics
-from app.routers import equipment_create, materials_create, plants_create, plants_list, production_plans_import, routings_create, work_orders_create, work_orders_get, work_orders_list, workers_create
+from app.routers import equipment_create, materials_create, plants_create, plants_list, production_plans_import, routings_create, work_orders_create, work_orders_get, work_orders_list, work_orders_state, workers_create
 from app.services import DatabaseHealthService
 
 
@@ -75,6 +75,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(production_plans_import.router, prefix="/api/v1/production-plans")
     app.include_router(work_orders_create.router, prefix="/api/v1/work-orders")
     app.include_router(work_orders_get.router, prefix="/api/v1/work-orders")
+    app.include_router(work_orders_state.router, prefix="/api/v1/work-orders")
     app.include_router(work_orders_list.router, prefix="/api/v1/work-orders")
 
     # 路由注册完成后初始化 Wireup 集成
