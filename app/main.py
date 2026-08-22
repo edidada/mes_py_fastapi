@@ -18,7 +18,7 @@ from app.contract import ok
 from app.database import close_db_engine, init_db
 from app.errors import register_error_handlers
 from app.metrics import install_metrics
-from app.routers import andons_close, andons_create, andons_list, dashboard, equipment_create, equipment_events, equipment_state, execution_context, executions_complete, executions_rework, executions_scrap, executions_start, integration_inbox, integration_messages, integration_outbox, integration_outbox_replay, master_recipe_versions, master_recipes, maintenance_work_orders, material_allocations_suggest, material_consumptions, material_reservations, materials_create, plants_create, plants_list, production_plans_import, quality_capas, quality_inspection_lots, quality_inspections, quality_nonconformances, quality_spc_charts, routings_create, stations_sessions, trace_impact_query, trace_units, work_orders_create, work_orders_dispatch, work_orders_get, work_orders_list, work_orders_state, workers_create
+from app.routers import andons_close, andons_create, andons_list, batches_create, dashboard, equipment_create, equipment_events, equipment_state, execution_context, executions_complete, executions_rework, executions_scrap, executions_start, integration_inbox, integration_messages, integration_outbox, integration_outbox_replay, master_recipe_versions, master_recipes, maintenance_work_orders, material_allocations_suggest, material_consumptions, material_reservations, materials_create, plants_create, plants_list, production_plans_import, quality_capas, quality_inspection_lots, quality_inspections, quality_nonconformances, quality_spc_charts, routings_create, stations_sessions, trace_impact_query, trace_units, work_orders_create, work_orders_dispatch, work_orders_get, work_orders_list, work_orders_state, workers_create
 from app.services import DatabaseHealthService
 
 
@@ -89,6 +89,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(dashboard.router, prefix="/api/v1/dashboard")
     app.include_router(master_recipes.router, prefix="/api/v1/master/recipes")
     app.include_router(master_recipe_versions.router, prefix="/api/v1/master/recipes")
+    app.include_router(batches_create.router, prefix="/api/v1/batches")
     app.include_router(workers_create.router, prefix="/api/v1/master/workers")
     app.include_router(stations_sessions.router, prefix="/api/v1/stations")
     app.include_router(execution_context.router, prefix="/api/v1/execution-context")
@@ -107,6 +108,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(work_orders_get.router, prefix="/api/v1/work-orders")
     app.include_router(work_orders_state.router, prefix="/api/v1/work-orders")
     app.include_router(work_orders_list.router, prefix="/api/v1/work-orders")
+    app.include_router(batches_create.router, prefix="/api/v1")
 
     # 路由注册完成后初始化 Wireup 集成
     wireup.integration.fastapi.setup(container, app)
