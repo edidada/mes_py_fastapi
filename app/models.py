@@ -315,6 +315,55 @@ class ProductionExecutionEvent(Base):
     occurred_at: Mapped[str] = mapped_column(String(32))
     plant_code: Mapped[str] = mapped_column(String(32), nullable=True)
     correlation_id: Mapped[str] = mapped_column(String(64), nullable=True)
+    idempotency_key: Mapped[str] = mapped_column(String(64), nullable=True)
+    defect_code: Mapped[str] = mapped_column(String(64), nullable=True)
+
+
+class ProductionParameterRecord(Base):
+    __tablename__ = "production_parameter_records"
+
+    record_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    serial_number: Mapped[str] = mapped_column(String(64), index=True)
+    work_order_number: Mapped[str] = mapped_column(String(64), nullable=True)
+    operation_sequence: Mapped[int] = mapped_column(Integer, nullable=True)
+    code: Mapped[str] = mapped_column(String(64))
+    value: Mapped[float] = mapped_column(Float, nullable=True)
+    lower_limit: Mapped[float] = mapped_column(Float, nullable=True)
+    upper_limit: Mapped[float] = mapped_column(Float, nullable=True)
+    in_spec: Mapped[int] = mapped_column(Integer, nullable=True)
+    operator_id: Mapped[str] = mapped_column(String(32), nullable=True)
+    recorded_at: Mapped[str] = mapped_column(String(32))
+
+
+class ProductionMaterialConsumption(Base):
+    __tablename__ = "production_material_consumptions"
+
+    consumption_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    serial_number: Mapped[str] = mapped_column(String(64), index=True)
+    work_order_number: Mapped[str] = mapped_column(String(64), nullable=True)
+    operation_sequence: Mapped[int] = mapped_column(Integer, nullable=True)
+    material_code: Mapped[str] = mapped_column(String(64), index=True)
+    lot_number: Mapped[str] = mapped_column(String(64), nullable=True)
+    quantity: Mapped[float] = mapped_column(Float, nullable=True)
+    unit_code: Mapped[str] = mapped_column(String(16), nullable=True)
+    consumed_by: Mapped[str] = mapped_column(String(32), nullable=True)
+    consumed_at: Mapped[str] = mapped_column(String(32))
+
+
+class QualityInspectionResult(Base):
+    __tablename__ = "quality_inspection_results"
+
+    inspection_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    plant_code: Mapped[str] = mapped_column(String(32), nullable=True)
+    lot_id: Mapped[str] = mapped_column(String(64), nullable=True)
+    serial_number: Mapped[str] = mapped_column(String(64), index=True)
+    work_order_number: Mapped[str] = mapped_column(String(64), nullable=True)
+    plan_code: Mapped[str] = mapped_column(String(64), nullable=True)
+    operation_sequence: Mapped[int] = mapped_column(Integer, nullable=True)
+    disposition: Mapped[str] = mapped_column(String(16), nullable=True)
+    inspector_id: Mapped[str] = mapped_column(String(32), nullable=True)
+    inspected_at: Mapped[str] = mapped_column(String(32))
+    payload: Mapped[str] = mapped_column(Text, nullable=True)
 
 
 class ProductionLaborRecord(Base):
@@ -328,6 +377,7 @@ class ProductionLaborRecord(Base):
     station_code: Mapped[str] = mapped_column(String(64), nullable=True)
     start_at: Mapped[str] = mapped_column(String(32), nullable=True)
     end_at: Mapped[str] = mapped_column(String(32), nullable=True)
+    duration_seconds: Mapped[int] = mapped_column(Integer, nullable=True)
     status: Mapped[str] = mapped_column(String(16), nullable=True)
 
 
@@ -344,6 +394,7 @@ class TraceEvent(Base):
     operator_id: Mapped[str] = mapped_column(String(32), nullable=True)
     occurred_at: Mapped[str] = mapped_column(String(32), nullable=True)
     correlation_id: Mapped[str] = mapped_column(String(64), nullable=True)
+    plant_code: Mapped[str] = mapped_column(String(32), nullable=True)
 
 
 class ProductionExecutionParameter(Base):
@@ -371,20 +422,6 @@ class ProductionProductUnit(Base):
     current_station_code: Mapped[str] = mapped_column(String(64), nullable=True)
     started_at: Mapped[str] = mapped_column(String(32), nullable=True)
     created_at: Mapped[str] = mapped_column(String(32), nullable=True)
-
-
-class ProductionMaterialConsumption(Base):
-    __tablename__ = "production_material_consumptions"
-
-    consumption_id: Mapped[str] = mapped_column(String(64), primary_key=True)
-    serial_number: Mapped[str] = mapped_column(String(64), index=True)
-    material_code: Mapped[str] = mapped_column(String(64), index=True)
-    lot_number: Mapped[str] = mapped_column(String(64), index=True)
-    work_order_number: Mapped[str] = mapped_column(String(64), nullable=True)
-    quantity: Mapped[float] = mapped_column(Float, nullable=True)
-    unit_code: Mapped[str] = mapped_column(String(16), nullable=True)
-    consumed_by: Mapped[str] = mapped_column(String(32), nullable=True)
-    consumed_at: Mapped[str] = mapped_column(String(32))
 
 
 class QualityInspectionLot(Base):
@@ -617,7 +654,7 @@ class ReportingAndonSummary(Base):
 
 
 class ReportingShiftProduction(Base):
-    __tablename__ = "reporting_shift_production"
+    __tablename__ = "reporting_production_shift_summary"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     plant_code: Mapped[str] = mapped_column(String(32), index=True)
