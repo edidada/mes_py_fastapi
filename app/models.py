@@ -555,10 +555,16 @@ class QualityCapa(Base):
 class QualitySpcMeasurement(Base):
     __tablename__ = "quality_spc_measurements"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    measurement_id: Mapped[str] = mapped_column(String(64), primary_key=True)
     material_code: Mapped[str] = mapped_column(String(64), index=True)
     characteristic_code: Mapped[str] = mapped_column(String(64), index=True)
     value: Mapped[float] = mapped_column(Float, nullable=True)
+    cl: Mapped[float] = mapped_column(Float, nullable=True)
+    ucl: Mapped[float] = mapped_column(Float, nullable=True)
+    lcl: Mapped[float] = mapped_column(Float, nullable=True)
+    usl: Mapped[float] = mapped_column(Float, nullable=True)
+    lsl: Mapped[float] = mapped_column(Float, nullable=True)
+    violation_rule: Mapped[str] = mapped_column(String(64), nullable=True)
     measured_at: Mapped[str] = mapped_column(String(32))
 
 
