@@ -89,6 +89,20 @@ _VIEWS: list[tuple[str, str]] = [
         FROM production_batches b
         """,
     ),
+    (
+        "v_dashboard_current",
+        """
+        CREATE VIEW IF NOT EXISTS v_dashboard_current AS
+        SELECT plant_code,
+               SUM(COALESCE(planned_quantity, 0)) AS planned_quantity,
+               SUM(COALESCE(completed_quantity, 0)) AS completed_quantity,
+               SUM(COALESCE(good_quantity, 0)) AS good_quantity,
+               SUM(COALESCE(rejected_quantity, 0)) AS rejected_quantity,
+               MAX(last_event_at) AS last_event_at
+        FROM reporting_production_shift_summary
+        GROUP BY plant_code
+        """,
+    ),
 ]
 
 
