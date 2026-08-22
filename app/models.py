@@ -355,7 +355,9 @@ class QualityInspectionResult(Base):
 
     inspection_id: Mapped[str] = mapped_column(String(64), primary_key=True)
     plant_code: Mapped[str] = mapped_column(String(32), nullable=True)
-    lot_id: Mapped[str] = mapped_column(String(64), nullable=True)
+    lot_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("quality_inspection_lots.lot_id"), nullable=True
+    )
     serial_number: Mapped[str] = mapped_column(String(64), index=True)
     work_order_number: Mapped[str] = mapped_column(String(64), nullable=True)
     plan_code: Mapped[str] = mapped_column(String(64), nullable=True)
@@ -422,6 +424,7 @@ class ProductionProductUnit(Base):
     current_station_code: Mapped[str] = mapped_column(String(64), nullable=True)
     started_at: Mapped[str] = mapped_column(String(32), nullable=True)
     completed_at: Mapped[str] = mapped_column(String(32), nullable=True)
+    updated_at: Mapped[str] = mapped_column(String(32), nullable=True)
     created_at: Mapped[str] = mapped_column(String(32), nullable=True)
 
 
@@ -504,11 +507,13 @@ class QualityNonconformance(Base):
     __tablename__ = "quality_nonconformances"
 
     nonconformance_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    plant_code: Mapped[str] = mapped_column(String(32), nullable=True)
     serial_number: Mapped[str] = mapped_column(String(64), nullable=True)
     work_order_number: Mapped[str] = mapped_column(String(64), nullable=True)
     defect_code: Mapped[str] = mapped_column(String(64), nullable=True)
     severity: Mapped[str] = mapped_column(String(16), nullable=True)
     status: Mapped[str] = mapped_column(String(16), nullable=True)
+    affected_qty: Mapped[int] = mapped_column(Integer, nullable=True)
     reported_by: Mapped[str] = mapped_column(String(32), nullable=True)
     reported_at: Mapped[str] = mapped_column(String(32))
 
@@ -715,6 +720,19 @@ class ReportingShiftProduction(Base):
     good_quantity: Mapped[float] = mapped_column(Float, nullable=True)
     rejected_quantity: Mapped[float] = mapped_column(Float, nullable=True)
     last_event_at: Mapped[str] = mapped_column(String(32), nullable=True)
+
+
+class ReportingQualityShiftSummary(Base):
+    __tablename__ = "reporting_quality_shift_summary"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    plant_code: Mapped[str] = mapped_column(String(32), index=True)
+    shift_date: Mapped[str] = mapped_column(String(16), index=True)
+    shift_code: Mapped[str] = mapped_column(String(16), nullable=True)
+    inspection_count: Mapped[int] = mapped_column(Integer, nullable=True)
+    accepted_count: Mapped[int] = mapped_column(Integer, nullable=True)
+    rejected_count: Mapped[int] = mapped_column(Integer, nullable=True)
+    hold_count: Mapped[int] = mapped_column(Integer, nullable=True)
 
 
 class MasterRecipe(Base):
