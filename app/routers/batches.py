@@ -30,7 +30,9 @@ from app.idempotency import find_idempotent, require_idempotency_key, save_idemp
 router = APIRouter()
 
 # production_batches.status 固定枚举上限，与 C++ 一致截断超长值
+# 注：创建端点将初始状态写为 DRAFT，此处纳入以保证正确回显与迁移
 _STATUS_CAP = (
+    "DRAFT",
     "CREATED",
     "RELEASED",
     "IN_PROGRESS",
@@ -43,7 +45,9 @@ _STATUS_CAP = (
 )
 
 # 固定状态机迁移（文档 2562-2590）；* 可到 COMPLETED / CANCELLED（需 qa_status）
+# 实现层初始状态为 DRAFT，等价文档的 CREATED
 _STATE_GRAPH: dict[str, set[str]] = {
+    "DRAFT": {"RELEASED"},
     "CREATED": {"RELEASED"},
     "RELEASED": {"IN_PROGRESS"},
     "IN_PROGRESS": {"WAITING_QA"},
@@ -54,7 +58,6 @@ _STATE_GRAPH: dict[str, set[str]] = {
     "CLOSED": set(),
     "CANCELLED": set(),
 }
-_TERMINAL = {"COMPLETED", "CLOSED", "CANCELLED", "QA_FAILED"}
 
 _ALLOWED_ROLES = {"MES_SUPERVISOR", "QA_INSPECTOR", "MES_ADMIN"}
 
@@ -556,18 +559,20 @@ async def post_batch_disposition(batch_id: str, request: Request, db: DbSession)
     try:
         await db.execute(
             text(
-                "INSERT INTO production_batch_dispositions "
-                "(id, batch_number, decision, disposition_code, inspector, inspected_at, notes, status) "
-                "VALUES (:id, :bid, :dec, :dc, :ins, :at, :notes, 'RECORDED')"
+                "INSERT INTO quality_batch_dispositions "
+                "(disposition_id, batch_number, disposition, reason_code, deviation_reference, "
+                " reviewed_by, electronic_signature, reviewed_at) "
+                "VALUES (:id, :bid, :dec, :dc, :notes, :ins, :sig, :at)"
             ),
             {
                 "id": gen_id("DSP"),
                 "bid": batch_id,
                 "dec": decision,
                 "dc": disposition_code,
-                "ins": inspector,
-                "at": now,
                 "notes": notes,
+                "ins": inspector,
+                "sig": inspector,
+                "at": now,
             },
         )
         await db.execute(
@@ -652,8 +657,8 @@ async def get_batch_ebr(batch_id: str, request: Request, db: DbSession) -> dict:
     dispositions = (
         await db.execute(
             text(
-                "SELECT decision, disposition_code, inspector, inspected_at, notes, status "
-                "FROM production_batch_dispositions WHERE batch_number = :bid ORDER BY inspected_at"
+                "SELECT disposition, reason_code, reviewed_by, reviewed_at, deviation_reference "
+                "FROM quality_batch_dispositions WHERE batch_number = :bid ORDER BY reviewed_at"
             ),
             {"bid": batch_id},
         )
@@ -716,7 +721,6 @@ async def get_batch_ebr(batch_id: str, request: Request, db: DbSession) -> dict:
                 "inspector": d[2],
                 "inspectedAt": d[3],
                 "notes": d[4],
-                "status": d[5],
             }
             for d in dispositions
         ],

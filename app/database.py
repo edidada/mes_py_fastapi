@@ -136,10 +136,10 @@ _VIEWS: list[tuple[str, str]] = [
         """
         CREATE VIEW IF NOT EXISTS v_quality_ebr AS
         SELECT b.batch_number,
-               (SELECT d.decision
-                  FROM production_batch_dispositions d
+               (SELECT d.disposition
+                  FROM quality_batch_dispositions d
                  WHERE d.batch_number = b.batch_number
-                 ORDER BY d.inspected_at DESC LIMIT 1) AS decision,
+                 ORDER BY d.reviewed_at DESC LIMIT 1) AS decision,
                b.quality_disposition AS disposition_status,
                b.status AS batch_status
         FROM production_batches b
