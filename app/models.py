@@ -593,7 +593,9 @@ class AssetMaintenanceWorkOrder(Base):
     __tablename__ = "asset_maintenance_work_orders"
 
     maintenance_work_order_id: Mapped[str] = mapped_column(String(64), primary_key=True)
-    equipment_code: Mapped[str] = mapped_column(String(64), nullable=True)
+    equipment_code: Mapped[str] = mapped_column(
+        String(64), ForeignKey("asset_equipment.equipment_code"), nullable=False
+    )
     maintenance_type: Mapped[str] = mapped_column(String(16), nullable=True)
     description: Mapped[str] = mapped_column(String(256), nullable=True)
     assignee_id: Mapped[str] = mapped_column(String(32), nullable=True)

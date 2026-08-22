@@ -18,7 +18,7 @@ from app.contract import ok
 from app.database import close_db_engine, init_db
 from app.errors import register_error_handlers
 from app.metrics import install_metrics
-from app.routers import equipment_create, equipment_events, equipment_state, execution_context, executions_complete, executions_rework, executions_scrap, executions_start, materials_create, plants_create, plants_list, production_plans_import, quality_capas, quality_inspection_lots, quality_inspections, quality_nonconformances, quality_spc_charts, routings_create, stations_sessions, work_orders_create, work_orders_dispatch, work_orders_get, work_orders_list, work_orders_state, workers_create
+from app.routers import equipment_create, equipment_events, equipment_state, execution_context, executions_complete, executions_rework, executions_scrap, executions_start, maintenance_work_orders, materials_create, plants_create, plants_list, production_plans_import, quality_capas, quality_inspection_lots, quality_inspections, quality_nonconformances, quality_spc_charts, routings_create, stations_sessions, work_orders_create, work_orders_dispatch, work_orders_get, work_orders_list, work_orders_state, workers_create
 from app.services import DatabaseHealthService
 
 
@@ -73,6 +73,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(equipment_create.router, prefix="/api/v1/master/equipment")
     app.include_router(equipment_events.router, prefix="/api/v1/equipment")
     app.include_router(equipment_state.router, prefix="/api/v1/equipment")
+    app.include_router(maintenance_work_orders.router, prefix="/api/v1/maintenance-work-orders")
     app.include_router(workers_create.router, prefix="/api/v1/master/workers")
     app.include_router(stations_sessions.router, prefix="/api/v1/stations")
     app.include_router(execution_context.router, prefix="/api/v1/execution-context")
