@@ -251,3 +251,141 @@ async def transition_batch(batch_id: str, request: Request, db: DbSession) -> di
 
     return ok({"batchNumber": batch_id, "status": target}, corr)
 
+
+@router.post("/batches/{batch_id}/charges", status_code=200)
+async def post_batch_charges(batch_id: str, request: Request, db: DbSession) -> dict:
+    corr = correlation_id(request.headers.get("X-Correlation-Id"))
+    require_role(request, {"MES_SUPERVISOR", "MES_ADMIN"}, "MES_SUPERVISOR required")
+    idem_key = await require_idempotency_key(request)
+    cached = await find_idempotent(db, idem_key)
+    if cached is not None:
+        return ok({"batchNumber": cached["resource_code"], "cached": True}, corr)
+
+    body = await _parse_body(request)
+    charges = body.get("charges")
+    if not isinstance(charges, list) or not charges:
+        raise MESError(422, "VALIDATION_ERROR", "charges required")
+
+    # 批次必须存在且取其工厂
+    b = (
+        await db.execute(
+            text("SELECT plant_code, recipe_code, recipe_version FROM production_batches WHERE batch_number = :bid"),
+            {"bid": batch_id},
+        )
+    ).first()
+    if b is None:
+        raise MESError(404, "NOT_FOUND", "batch not found")
+    plant_code = b[0]
+    recipe_code = b[1]
+    recipe_version = b[2]
+
+    # 校验每笔投料并经主配方组分匹配、库存可用量校验
+    parsed = []
+    for idx, c in enumerate(charges):
+        if not isinstance(c, dict):
+            raise MESError(422, "VALIDATION_ERROR", f"charge[{idx}] must be object")
+        seq = c.get("componentSequence")
+        seq = seq if isinstance(seq, int) and not isinstance(seq, bool) else int(seq) if str(seq).isdigit() else 0
+        material_code = c.get("materialCode")
+        material_code = material_code if isinstance(material_code, str) else ""
+        lot_number = c.get("lotNumber")
+        lot_number = lot_number if isinstance(lot_number, str) else None
+        quantity = c.get("quantity")
+        try:
+            quantity = float(quantity)
+        except (TypeError, ValueError):
+            raise MESError(422, "VALIDATION_ERROR", f"charge[{idx}] quantity invalid") from None
+        unit_code = c.get("unitCode")
+        unit_code = unit_code if isinstance(unit_code, str) else ""
+        if not material_code:
+            raise MESError(422, "VALIDATION_ERROR", f"charge[{idx}] materialCode required")
+        if quantity <= 0:
+            raise MESError(409, "CONFLICT", f"charge[{idx}] quantity must be > 0")
+
+        # 组分必须匹配批次主配方
+        comp = (
+            await db.execute(
+                text(
+                    "SELECT 1 FROM master_recipe_components "
+                    "WHERE recipe_code = :rc AND version = :rv "
+                    "AND component_sequence = :seq AND material_code = :mc"
+                ),
+                {"rc": recipe_code, "rv": recipe_version, "seq": seq, "mc": material_code},
+            )
+        ).first()
+        if comp is None:
+            raise MESError(409, "CONFLICT", f"charge[{idx}] component mismatch with recipe")
+
+        # 调用库存服务：按工厂/物料/批次号聚合可用量，校验充足
+        avail = (
+            await db.execute(
+                text(
+                    "SELECT COALESCE(SUM(on_hand_quantity - reserved_quantity), 0) "
+                    "FROM material_inventory_balances "
+                    "WHERE plant_code = :p AND material_code = :mc "
+                    "AND (batch_number = :lot OR :lot IS NULL)"
+                ),
+                {"p": plant_code, "mc": material_code, "lot": lot_number},
+            )
+        ).scalar()
+        if avail is None or avail < quantity:
+            raise MESError(409, "CONFLICT", f"charge[{idx}] insufficient inventory")
+
+        parsed.append((seq, material_code, lot_number, quantity, unit_code))
+
+    now = utc_now()
+    try:
+        for seq, material_code, lot_number, quantity, unit_code in parsed:
+            await db.execute(
+                text(
+                    "INSERT INTO production_batch_charges "
+                    "(charge_id, batch_number, component_sequence, material_code, lot_number, "
+                    "quantity, unit_code, charged_by, charged_at) "
+                    "VALUES (:id, :bid, :seq, :mc, :lot, :q, :u, :by, :at)"
+                ),
+                {
+                    "id": gen_id("CHG"),
+                    "bid": batch_id,
+                    "seq": seq,
+                    "mc": material_code,
+                    "lot": lot_number,
+                    "q": quantity,
+                    "u": unit_code,
+                    "by": get_actor(request),
+                    "at": now,
+                },
+            )
+        await write_audit(
+            db,
+            action="BATCH_CHARGE",
+            resource_type="BATCH",
+            resource_id=batch_id,
+            before={},
+            after={"charges": len(parsed)},
+            actor_id=get_actor(request),
+        )
+        await db.execute(
+            text(
+                "INSERT INTO integration_outbox_messages "
+                "(outbox_id, aggregate_type, aggregate_id, event_type, target_system, "
+                "status, payload, created_at) "
+                "VALUES (:id, 'BATCH', :aid, 'batch.charges.posted', 'ERP', "
+                "'PENDING', :payload, :at)"
+            ),
+            {
+                "id": gen_id("OUT"),
+                "aid": batch_id,
+                "payload": json.dumps({"batchNumber": batch_id, "charges": len(parsed)}, ensure_ascii=False),
+                "at": now,
+            },
+        )
+        await save_idempotent(db, idem_key, "200", batch_id, "charges posted")
+        await db.commit()
+    except MESError:
+        await db.rollback()
+        raise
+    except Exception:  # noqa: BLE001 - 与 C++ 一致忽略写失败
+        await db.rollback()
+
+    return ok({"batchNumber": batch_id, "chargesPosted": len(parsed)}, corr)
+
