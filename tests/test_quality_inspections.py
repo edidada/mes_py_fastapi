@@ -4,6 +4,7 @@
 """
 
 import asyncio
+from datetime import datetime, timezone
 
 from fastapi.testclient import TestClient
 from sqlalchemy import text as sqltext
@@ -11,6 +12,17 @@ from sqlalchemy import text as sqltext
 from app.config import Settings
 from app.database import create_db_engine
 from app.main import create_app
+
+
+def _utc_today() -> str:
+    """当前 UTC 日期（YYYY-MM-DD）。
+
+    应用端报表汇总按 ``utc_now()[:10]``（真实当天 UTC）更新 ``shift_date``，
+    因此测试种子必须使用同一个当天日期，否则 UPDATE 匹配不到行、计数保持初始值。
+    写死日期会让测试只在那一天通过。
+    """
+
+    return datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
 
 def _make_client(tmp_path) -> TestClient:
@@ -43,7 +55,8 @@ def _query(tmp_path, sql, **params):
     return asyncio.new_event_loop().run_until_complete(_run())
 
 
-def _setup(tmp_path, unit_status="WAITING_INSPECTION", with_next_op=True, today="2026-08-22"):
+def _setup(tmp_path, unit_status="WAITING_INSPECTION", with_next_op=True, today=None):
+    today = today or _utc_today()
     _exec(
         tmp_path,
         "INSERT INTO production_work_orders "
